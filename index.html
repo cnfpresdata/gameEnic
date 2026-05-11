@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0E1E47">
+<title>Desafio InfraBR</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.43.4/dist/umd/supabase.min.js"></script>
+
+<style>
+:root {
+  /* Cores oficiais InfraBR (cartilha pg 9) */
+  --infra-blue:   #002878;
+  --infra-green:  #008c00;
+  --infra-yellow: #ffb900;
+
+  /* Superfícies — navy aconchegante */
+  --bg:           #0C1F4D;
+  --bg-deep:      #081942;
+  --bg-card:      #142C5E;
+  --bg-card-2:    #1C3669;
+  --bg-card-3:    #25427A;
+
+  /* Bordas em amarelo translúcido (dá calor e marca a identidade) */
+  --border:       rgba(255, 185, 0, 0.10);
+  --border-2:     rgba(255, 185, 0, 0.22);
+  --border-3:     rgba(255, 185, 0, 0.36);
+
+  /* Texto em cream warm-white (não branco puro) */
+  --text:         #F8F2E1;
+  --text-2:       rgba(248, 242, 225, 0.75);
+  --text-3:       rgba(248, 242, 225, 0.55);
+  --text-4:       rgba(248, 242, 225, 0.30);
+
+  /* Escala do mapa (preservada — semântica do índice) */
+  --green:        #1FB833;
+  --green-light:  #3FDC54;
+  --yellow:       #FAD040;
+  --orange:       #EE7C2A;
+  --red:          #FF5560;
+  --blue:         #4A8FE8;
+
+  /* Acento amarelo InfraBR */
+  --accent:       var(--infra-yellow);
+  --accent-ink:   var(--infra-blue);
+
+  --radius:       14px;
+  --radius-lg:    20px;
+  --radius-xl:    28px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; min-height: 100vh; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(900px 700px at 100% 0%, rgba(255, 185, 0, 0.10), transparent 55%),
+    radial-gradient(800px 600px at 0% 100%, rgba(31, 184, 51, 0.08), transparent 55%),
+    radial-gradient(600px 500px at 50% 50%, rgba(0, 40, 120, 0.20), transparent 70%);
+}
+
+.font-display { font-family: 'Montserrat', system-ui, sans-serif; letter-spacing: -0.015em; line-height: 1; }
+.font-mono    { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.eyebrow      { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 500; }
+.muted        { color: var(--text-2); }
+
+a { color: inherit; }
+button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; padding: 0; }
+
+/* ====================== LAYOUT ============================ */
+.shell    { position: relative; z-index: 1; min-height: 100vh; }
+.container{ width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+.container-sm { width: 100%; max-width: 540px; margin: 0 auto; padding: 0 28px; }
+.container-md { width: 100%; max-width: 760px; margin: 0 auto; padding: 0 28px; }
+
+/* ====================== HEADER ============================ */
+.app-header {
+  position: sticky; top: 0; z-index: 30;
+  background: #FFFFFF;
+  border-bottom: 1px solid rgba(0, 40, 120, 0.08);
+  box-shadow: 0 1px 0 rgba(0, 40, 120, 0.04), 0 8px 24px -16px rgba(0, 40, 120, 0.10);
+}
+.app-header .brand-fallback        { color: var(--infra-blue); }
+.app-header .brand-fallback span   { color: var(--infra-green); }
+.app-header .greeting-block .label { color: rgba(0, 40, 120, 0.50); }
+.app-header .greeting-block .name  { color: var(--infra-blue); }
+.app-header .metric                { color: var(--infra-blue); border-color: rgba(0, 40, 120, 0.14); }
+.app-header .metric:hover          { border-color: rgba(0, 40, 120, 0.28); background: rgba(0, 40, 120, 0.04); }
+.app-header .metric .num           { color: var(--infra-blue); font-weight: 700; }
+.app-header-inner { display: flex; align-items: center; gap: 24px; padding: 16px 28px; max-width: 1180px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-logo { height: 32px; width: auto; display: block; }
+.brand-fallback { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.brand-fallback span { color: var(--accent); }
+
+.app-header .greeting-block { flex: 1; min-width: 0; }
+.app-header .greeting-block .label { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-3); }
+.app-header .greeting-block .name   { font-size: 14px; font-weight: 500; color: var(--text); margin-top: 2px; }
+
+.metric { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 500; transition: border-color .2s ease, background .2s ease; }
+.metric:hover { border-color: var(--border-2); background: var(--bg-card); }
+.metric .icon { width: 14px; height: 14px; opacity: .65; }
+.metric .num { color: var(--accent); font-weight: 600; }
+
+/* ====================== SCREENS ============================ */
+.screen { display: none; }
+.screen.active { display: block; animation: screenIn .35s cubic-bezier(.2,.7,.3,1); }
+@keyframes screenIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ====================== TYPOGRAPHY ============================ */
+h1.title { font-family: 'Bricolage Grotesque'; font-weight: 800; font-size: clamp(36px, 6vw, 56px); line-height: 1.0; letter-spacing: -0.03em; margin: 0; }
+h2.section-title { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; margin: 0; }
+
+/* ====================== INPUTS ============================ */
+.field { display: block; }
+.field-label { display: block; font-size: 12px; color: var(--text-2); font-weight: 500; margin-bottom: 8px; letter-spacing: 0.01em; }
+.input, .textarea {
+  display: block; width: 100%;
+  background: var(--bg-card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; font: inherit; font-size: 15px;
+  outline: none; transition: border-color .15s ease, background .15s ease;
+}
+.input::placeholder, .textarea::placeholder { color: var(--text-3); }
+.input:hover, .textarea:hover { border-color: var(--border-2); }
+.input:focus, .textarea:focus { border-color: var(--accent); background: var(--bg-card-2); }
+.textarea { resize: none; line-height: 1.5; }
+
+.checkbox { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; user-select: none; }
+.checkbox input { display: none; }
+.checkbox .box { flex-shrink: 0; width: 18px; height: 18px; border: 1.5px solid var(--border-3); border-radius: 5px; margin-top: 1px; transition: all .15s ease; display: flex; align-items: center; justify-content: center; }
+.checkbox input:checked + .box { background: var(--accent); border-color: var(--accent); }
+.checkbox .box svg { width: 12px; height: 12px; opacity: 0; color: var(--accent-ink); }
+.checkbox input:checked + .box svg { opacity: 1; }
+.checkbox .text { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+/* ====================== CUSTOM DROPDOWN (corrige bug do <select> nativo) ============================ */
+.dropdown { position: relative; }
+.dropdown-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--bg-card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; font: inherit; font-size: 15px; text-align: left;
+  transition: border-color .15s ease, background .15s ease;
+}
+.dropdown-trigger:hover { border-color: var(--border-2); }
+.dropdown.open .dropdown-trigger { border-color: var(--accent); background: var(--bg-card-2); }
+.dropdown-trigger .placeholder { color: var(--text-3); }
+.dropdown-trigger .chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-3); transition: transform .2s ease; }
+.dropdown.open .dropdown-trigger .chevron { transform: rotate(180deg); }
+.dropdown-menu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: var(--bg-card-2); border: 1px solid var(--border-2); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  max-height: 320px; overflow-y: auto; z-index: 20;
+  display: none;
+  padding: 6px;
+}
+.dropdown.open .dropdown-menu { display: block; animation: ddIn .15s ease; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.dropdown-option {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 11px 12px; border-radius: 8px; text-align: left;
+  font-size: 14px; color: var(--text); transition: background .12s ease;
+}
+.dropdown-option:hover, .dropdown-option.focused { background: var(--bg-card-3); }
+.dropdown-option .uf { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-3); width: 24px; }
+.dropdown-option .dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.dropdown-search {
+  padding: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  position: sticky; top: -6px; background: var(--bg-card-2); z-index: 1;
+}
+.dropdown-search input { background: var(--bg-card-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); width: 100%; font: inherit; font-size: 13px; outline: none; }
+.dropdown-search input:focus { border-color: var(--accent); }
+
+/* ====================== BUTTONS ============================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 22px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  letter-spacing: -0.005em; transition: all .18s cubic-bezier(.2,.7,.3,1);
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn-primary:hover { background: #c0db4d; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; transform: none !important; }
+.btn-ghost { color: var(--text-2); }
+.btn-ghost:hover { color: var(--text); background: var(--bg-card); }
+.btn-outline { color: var(--text); border: 1px solid var(--border-2); }
+.btn-outline:hover { border-color: var(--text-3); background: var(--bg-card); }
+.btn-lg { padding: 16px 28px; font-size: 15px; }
+.btn-block { width: 100%; }
+.btn-icon { padding: 10px; gap: 0; }
+
+.btn .arrow { width: 14px; height: 14px; transition: transform .2s ease; }
+.btn:hover .arrow { transform: translateX(2px); }
+
+/* ====================== CARDS ============================ */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+}
+.card-tight { padding: 20px; }
+.card-lg    { padding: 36px; border-radius: var(--radius-xl); }
+
+/* ====================== WELCOME ============================ */
+#screen-welcome { padding: 80px 0 60px; }
+@media (max-width: 600px) { #screen-welcome { padding: 48px 0; } }
+.welcome-brand {
+  align-self: center;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 22px 44px 16px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 40, 120, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 1px 0 rgba(0, 40, 120, 0.04), 0 14px 40px -18px rgba(0, 40, 120, 0.22);
+  margin-bottom: 56px;
+}
+.welcome-brand img {
+  height: 128px; width: auto; max-width: 92%;
+  margin: 0 0 14px; display: block; object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+}
+.welcome-brand .brand-fallback        { color: var(--infra-blue); }
+.welcome-brand .brand-fallback span   { color: var(--infra-green); }
+.welcome-brand .eyebrow { display: block; margin: 0; color: var(--infra-blue); opacity: 0.68; }
+.welcome-hero { text-align: center; margin-bottom: 48px; }
+.welcome-hero h1 { font-size: clamp(40px, 7vw, 68px); }
+.welcome-hero h1 em { font-style: normal; color: var(--accent); }
+.welcome-hero p { color: var(--text-2); font-size: 16px; max-width: 460px; margin: 22px auto 0; line-height: 1.55; }
+.welcome-card { max-width: 460px; margin: 0 auto; }
+
+/* small geometry accents */
+.geo { display: inline-flex; gap: 6px; align-items: center; }
+.geo i { display: block; }
+.geo-rect { width: 10px; height: 10px; background: var(--green-light); border-radius: 1px; }
+.geo-circ { width: 10px; height: 10px; background: var(--yellow); border-radius: 50%; }
+.geo-tri  { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--orange); }
+
+/* ====================== MAP / STATE PICKER ============================ */
+.page-head { padding: 36px 0 24px; }
+.page-head h2 { font-size: 36px; }
+.page-head .lead { color: var(--text-2); margin-top: 10px; font-size: 15px; max-width: 560px; }
+
+.state-card { padding: 0; overflow: hidden; }
+.state-card-top { padding: 20px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); }
+.state-card-top .label { font-size: 12px; color: var(--text-2); white-space: nowrap; font-weight: 500; }
+.state-card-top .dropdown { flex: 1; }
+
+#brazil-map { width: 100%; height: auto; max-height: 70vh; display: block; padding: 12px; }
+.uf-path {
+  cursor: pointer; stroke: var(--bg); stroke-width: 1.4;
+  transition: filter .25s ease, opacity .25s ease;
+  transform-box: fill-box; transform-origin: center;
+}
+.uf-path:hover { filter: brightness(1.18); }
+.uf-path.played { stroke: var(--text); stroke-width: 2.2; }
+.uf-label {
+  fill: #0E1E47; font-family: 'Inter'; font-weight: 600; font-size: 10px;
+  pointer-events: none; text-anchor: middle; dominant-baseline: middle;
+  paint-order: stroke; stroke: rgba(255,255,255,0.55); stroke-width: 2.5;
+}
+
+.legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 14px 24px 18px; border-top: 1px solid var(--border); }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--text-3); letter-spacing: 0.01em; }
+.legend-item .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+/* ====================== QUIZ ============================ */
+.quiz-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 36px 0 24px; }
+.quiz-head .meta .uf { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 500; margin-bottom: 6px; }
+.quiz-head .meta h2 { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin: 0; }
+
+.timer-ring { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+.timer-ring svg { transform: rotate(-90deg); }
+.timer-ring circle { stroke-dasharray: 188.5; transition: stroke-dashoffset .1s linear, stroke .3s ease; }
+.timer-ring .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; font-variant-numeric: tabular-nums; }
+
+.question-card { padding: 32px; margin-bottom: 18px; }
+.question-card .q { font-family: 'Bricolage Grotesque'; font-weight: 600; font-size: 22px; line-height: 1.35; letter-spacing: -0.015em; }
+
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .options { grid-template-columns: 1fr; } }
+.option {
+  display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  text-align: left; font-size: 15px; line-height: 1.4; min-height: 76px;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.option { position: relative; }
+.option:hover:not(:disabled) { border-color: var(--border-3); background: var(--bg-card-2); }
+.option:disabled { cursor: default; }
+.option.selected { border-color: var(--accent); background: rgba(181, 208, 67, 0.10); }
+.option.selected::after {
+  content: 'toque novamente para confirmar';
+  position: absolute; bottom: 8px; right: 14px;
+  font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; pointer-events: none;
+}
+.how-to-play {
+  margin-top: 22px; padding: 14px 16px;
+  background: rgba(181, 208, 67, 0.06);
+  border: 1px solid rgba(181, 208, 67, 0.18);
+  border-radius: 12px;
+  font-size: 13px; line-height: 1.55; color: var(--text-2);
+}
+.how-to-play .lbl {
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; display: block; margin-bottom: 4px;
+}
+.how-to-play strong { color: var(--text); font-weight: 600; }
+.option .letter {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 13px; color: var(--accent-ink);
+  font-family: 'Bricolage Grotesque'; letter-spacing: 0;
+}
+.option[data-letter="A"] .letter { background: var(--green-light); }
+.option[data-letter="B"] .letter { background: var(--yellow); }
+.option[data-letter="C"] .letter { background: var(--orange); }
+.option[data-letter="D"] .letter { background: #93b3ff; }
+.option .text { flex: 1; padding-top: 4px; }
+
+.option.correct { border-color: var(--green); background: rgba(46, 157, 63, 0.10); animation: pulseOk .55s ease; }
+.option.wrong   { border-color: var(--red); background: rgba(200, 37, 44, 0.10); }
+.option.dim     { opacity: .35; }
+@keyframes pulseOk { 0% { transform: scale(1); } 40% { transform: scale(1.015); } 100% { transform: scale(1); } }
+
+.feedback { padding: 24px; margin-top: 18px; display: none; }
+.feedback.show { display: block; animation: screenIn .35s ease; }
+.feedback-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.feedback-head .status-mark { width: 26px; height: 26px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.feedback-head .status-mark.ok { background: rgba(46, 157, 63, 0.14); color: var(--green); }
+.feedback-head .status-mark.no { background: rgba(200, 37, 44, 0.14); color: var(--red); }
+.feedback-head .status-mark.tm { background: rgba(238, 124, 42, 0.14); color: var(--orange); }
+.feedback-head h3 { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 18px; margin: 0; flex: 1; }
+.feedback-head .points { font-family: 'Bricolage Grotesque'; font-weight: 700; color: var(--accent); font-size: 22px; font-variant-numeric: tabular-nums; }
+.feedback-head .points.muted { color: var(--text-3); }
+.feedback p { color: var(--text-2); margin: 0; line-height: 1.55; }
+
+/* ====================== SUGGEST ============================ */
+.dimensions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dim-chip {
+  padding: 9px 16px; border: 1px solid var(--border); background: var(--bg-card);
+  border-radius: 999px; font-size: 13px; color: var(--text-2);
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: all .15s ease;
+}
+.dim-chip:hover { border-color: var(--border-2); color: var(--text); }
+.dim-chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+.dim-chip.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.dim-chip.selected .dot { background: var(--accent-ink); }
+
+.counter { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); margin-top: 8px; }
+
+/* ====================== RESULT ============================ */
+.result-hero { text-align: center; padding: 56px 0 36px; }
+.result-hero .eyebrow { display: block; margin-bottom: 14px; }
+.result-hero h2 { font-family: 'Bricolage Grotesque'; font-weight: 800; font-size: clamp(40px, 7vw, 68px); letter-spacing: -0.03em; line-height: 1; margin: 0; }
+.result-stats { display: inline-flex; align-items: stretch; gap: 0; margin-top: 32px; padding: 0; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; }
+.result-stats > div { padding: 18px 32px; text-align: left; }
+.result-stats > div + div { border-left: 1px solid var(--border); }
+.result-stats .lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); font-weight: 500; }
+.result-stats .val { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 32px; line-height: 1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.result-stats .val.accent { color: var(--accent); }
+
+.result-actions { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+.badges-section { margin-top: 56px; }
+.badges-section .head { text-align: center; margin-bottom: 24px; }
+.badges-section h3 { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 22px; margin: 0; }
+.badges-section .sub { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.badge-tile {
+  padding: 20px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; position: relative; overflow: hidden;
+  transition: border-color .2s ease;
+}
+.badge-tile:hover { border-color: var(--border-2); }
+.badge-tile.locked { opacity: 0.4; }
+.badge-tile.new { border-color: var(--accent); background: rgba(181, 208, 67, 0.06); animation: tileIn .6s cubic-bezier(.2,1,.3,1); }
+@keyframes tileIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.badge-tile .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
+.badge-tile .name { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 15px; line-height: 1.25; margin: 0 0 6px; }
+.badge-tile .desc { font-size: 12px; color: var(--text-2); line-height: 1.5; margin: 0; }
+
+/* ====================== MODAL ============================ */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(8, 25, 66, 0.78);
+  backdrop-filter: blur(8px) saturate(140%);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-bg.show { display: flex; animation: bgIn .2s ease; }
+@keyframes bgIn { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  width: 100%; max-width: 540px; max-height: 86vh; overflow: hidden;
+  background: var(--bg-card-2); border: 1px solid var(--border-2); border-radius: var(--radius-xl);
+  display: flex; flex-direction: column;
+  animation: modalIn .25s cubic-bezier(.2,1,.3,1);
+}
+@keyframes modalIn { from { opacity: 0; transform: scale(.96) translateY(10px); } to { opacity: 1; transform: none; } }
+.modal-head { padding: 22px 26px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.modal-head h3 { font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 20px; margin: 0; }
+.modal-body { padding: 16px; overflow-y: auto; }
+
+.rank-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 10px; }
+.rank-row + .rank-row { margin-top: 2px; }
+.rank-row .pos { width: 28px; text-align: center; font-family: 'Bricolage Grotesque'; font-weight: 600; color: var(--text-3); font-size: 14px; }
+.rank-row.top1 .pos { color: var(--yellow); }
+.rank-row.top2 .pos { color: #C0C0C0; }
+.rank-row.top3 .pos { color: var(--orange); }
+.rank-row .who { flex: 1; min-width: 0; }
+.rank-row .who .nm { font-size: 14px; font-weight: 500; }
+.rank-row .who .sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.rank-row .pts { font-family: 'Bricolage Grotesque'; font-weight: 700; color: var(--accent); font-size: 18px; font-variant-numeric: tabular-nums; }
+.rank-row.me { background: rgba(181, 208, 67, 0.06); border: 1px solid rgba(181, 208, 67, 0.2); }
+
+/* ====================== UTIL ============================ */
+.icon { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 1.7; stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.icon-sm { width: 14px; height: 14px; }
+.icon-lg { width: 20px; height: 20px; }
+.row-end { display: flex; justify-content: flex-end; gap: 10px; }
+.divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+@media (max-width: 600px) {
+  .container, .container-md, .container-sm { padding: 0 20px; }
+  .app-header-inner { padding: 12px 20px; gap: 12px; }
+  .quiz-head { flex-direction: row; align-items: center; }
+  .question-card { padding: 24px; }
+  .question-card .q { font-size: 19px; }
+  .result-stats > div { padding: 16px 22px; }
+  .result-stats .val { font-size: 26px; }
+}
+
+/* Timer dramatização: pulsa cada vez mais rápido conforme o tempo se esgota */
+.timer-ring.warn     { animation: tPulse 1.2s ease-in-out infinite; }
+.timer-ring.danger   { animation: tPulse 0.7s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(238, 124, 42, 0.55)); }
+.timer-ring.critical {
+  animation: tShake 0.22s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(200, 37, 44, 0.85));
+}
+.timer-ring.critical .num { color: #ff6b73; font-size: 18px; }
+@keyframes tPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.10); }
+}
+@keyframes tShake {
+  0%, 100% { transform: translateX(0)  scale(1.10); }
+  25%      { transform: translateX(-3px) scale(1.10); }
+  75%      { transform: translateX(3px)  scale(1.10); }
+}
+
+/* ============================================================
+   RESPONSIVIDADE TOTAL — zero scroll, zero overflow.
+   Cada tela = 100% da viewport. Tudo escala com altura+largura.
+   ============================================================ */
+
+/* Bloqueia QUALQUER scroll no nível do documento */
+html, body {
+  height: 100vh; height: 100dvh;
+  margin: 0; padding: 0;
+  overflow: hidden;
+}
+
+/* Cada tela ocupa exatamente o viewport e nunca rola */
+.screen { display: none; }
+.screen.active {
+  display: flex;
+  flex-direction: column;
+  position: absolute; inset: 0;
+  height: 100vh; height: 100dvh;
+  overflow: hidden;
+  animation: screenIn .35s cubic-bezier(.2,.7,.3,1);
+  min-height: auto;
+}
+.app-header { flex-shrink: 0; }
+
+/* Welcome (sem header) — centro vertical */
+#screen-welcome.active {
+  align-items: center; justify-content: center;
+  padding: clamp(8px, 2vh, 32px) clamp(16px, 4vw, 32px);
+}
+#screen-welcome > .container-sm {
+  width: 100%; max-width: 460px;
+  display: flex; flex-direction: column; justify-content: center;
+  max-height: 100%;
+}
+
+/* Demais telas — conteúdo preenche o resto sem scroll */
+#screen-map > .container,
+#screen-quiz > .container-md,
+#screen-suggest > .container-md,
+#screen-result > .container {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: clamp(8px, 1.5vh, 22px) clamp(16px, 3vw, 28px);
+  gap: clamp(6px, 1vh, 14px);
+  overflow: hidden;
+}
+
+/* HEADER */
+.app-header-inner { padding: clamp(6px, 1.2vh, 14px) clamp(12px, 2vw, 32px) !important; gap: clamp(8px, 1.5vw, 22px) !important; }
+.brand-logo { height: clamp(20px, 3vh, 36px); }
+.app-header .greeting-block { min-width: 0; }
+.app-header .greeting-block .label { font-size: clamp(8px, 1.1vh, 11px); }
+.app-header .greeting-block .name { font-size: clamp(11px, 1.5vh, 14px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.metric { padding: clamp(4px, 0.8vh, 8px) clamp(8px, 1.2vw, 14px) !important; font-size: clamp(10px, 1.3vh, 13px) !important; }
+
+/* WELCOME */
+.welcome-brand { margin-bottom: clamp(8px, 2vh, 32px) !important; text-align: center; }
+.welcome-brand img { height: clamp(64px, 12vh, 128px) !important; width: auto !important; max-width: 88% !important; margin-bottom: clamp(8px, 1.4vh, 16px) !important; object-fit: contain; image-rendering: -webkit-optimize-contrast; }
+.welcome-brand .eyebrow { font-size: clamp(9px, 1.1vh, 11px); }
+.welcome-hero { text-align: center; margin-bottom: clamp(8px, 2vh, 28px) !important; }
+.welcome-hero h1 { font-size: clamp(22px, 5.5vh, 56px) !important; line-height: 1.05; margin: 0; }
+.welcome-hero p { font-size: clamp(11px, 1.5vh, 16px) !important; line-height: 1.4; margin: clamp(6px, 1.2vh, 18px) auto 0 !important; max-width: 460px; }
+.welcome-card { padding: clamp(12px, 2.2vh, 32px) !important; max-width: 460px; }
+.welcome-card .field-label { font-size: clamp(10px, 1.3vh, 12px) !important; margin-bottom: clamp(3px, 0.6vh, 8px) !important; }
+.welcome-card .input { font-size: clamp(12px, 1.6vh, 15px); padding: clamp(8px, 1.4vh, 13px) clamp(10px, 1.5vw, 16px) !important; }
+.welcome-card .checkbox { gap: clamp(8px, 1.2vw, 12px); margin-top: clamp(8px, 1.5vh, 18px) !important; }
+.welcome-card .checkbox .text { font-size: clamp(11px, 1.4vh, 13px); line-height: 1.4; }
+.how-to-play { padding: clamp(8px, 1.5vh, 14px) clamp(10px, 1.5vw, 16px) !important; margin-top: clamp(10px, 2vh, 22px) !important; font-size: clamp(11px, 1.4vh, 13px) !important; line-height: 1.4; }
+.how-to-play .lbl { font-size: clamp(9px, 1.1vh, 11px); margin-bottom: clamp(2px, 0.4vh, 6px) !important; }
+.welcome-card .btn-lg { font-size: clamp(12px, 1.6vh, 15px) !important; padding: clamp(10px, 1.6vh, 16px) clamp(16px, 2vw, 28px) !important; margin-top: clamp(10px, 1.6vh, 18px) !important; }
+.welcome-card .row-end { margin-top: clamp(8px, 1.2vh, 18px) !important; }
+.welcome-card .row-end .btn { font-size: clamp(10px, 1.3vh, 13px) !important; padding: clamp(5px, 0.8vh, 10px) clamp(10px, 1.5vw, 16px) !important; }
+
+/* MAP */
+#screen-map .page-head { padding: 0 0 clamp(8px, 1.4vh, 22px) !important; flex-shrink: 0; }
+#screen-map .page-head h2 { font-size: clamp(16px, 2.6vh, 32px) !important; margin: 0; }
+#screen-map .page-head .lead { font-size: clamp(11px, 1.4vh, 14px) !important; margin-top: clamp(3px, 0.6vh, 8px) !important; }
+#screen-map .state-card { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 !important; overflow: hidden; }
+#screen-map .state-card-top { padding: clamp(8px, 1.5vh, 18px) clamp(12px, 2vw, 24px) !important; flex-shrink: 0; gap: clamp(8px, 1.5vw, 16px); }
+#screen-map .state-card-top .label { font-size: clamp(10px, 1.3vh, 13px); }
+#screen-map .state-card-top .dropdown-trigger { font-size: clamp(12px, 1.5vh, 15px); padding: clamp(8px, 1.4vh, 13px) clamp(12px, 1.5vw, 16px); }
+#screen-map .state-card-top .btn { font-size: clamp(11px, 1.4vh, 14px); padding: clamp(8px, 1.4vh, 12px) clamp(12px, 2vw, 22px); }
+#screen-map #brazil-map { flex: 1; min-height: 0; max-height: none !important; padding: clamp(4px, 1vh, 14px) !important; width: 100%; }
+#screen-map .legend { padding: clamp(6px, 1vh, 12px) clamp(12px, 2vw, 24px) !important; flex-shrink: 0; gap: clamp(8px, 1.5vw, 18px); flex-wrap: wrap; }
+#screen-map .legend-item { font-size: clamp(9px, 1.2vh, 11px); }
+
+/* DIFFICULTY BAR (dentro do card do mapa) */
+.difficulty-bar {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: clamp(8px, 1.2vw, 14px);
+  padding: clamp(8px, 1.4vh, 14px) clamp(12px, 2vw, 24px);
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,185,0,0.03), transparent);
+  flex-shrink: 0;
+}
+.difficulty-bar .label {
+  font-size: clamp(10px, 1.3vh, 12px);
+  color: var(--text-2); font-weight: 500;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.difficulty-bar .diff-chips { display: flex; flex-wrap: wrap; gap: clamp(6px, 1vw, 10px); }
+.difficulty-bar .diff-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: clamp(5px, 0.9vh, 8px) clamp(10px, 1.4vw, 16px);
+  border: 1px solid var(--border-2); background: var(--bg-card);
+  border-radius: 999px; color: var(--text-2);
+  font-size: clamp(11px, 1.4vh, 13px); font-weight: 500;
+  transition: all .15s ease; white-space: nowrap;
+}
+.difficulty-bar .diff-chip:hover { color: var(--text); border-color: var(--border-3); }
+.difficulty-bar .diff-chip .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.25) inset;
+}
+.difficulty-bar .diff-chip.selected {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--accent-ink); font-weight: 600;
+}
+.difficulty-bar .diff-chip.selected .dot { box-shadow: 0 0 0 2px rgba(0,40,120,0.25) inset; }
+
+/* QUIZ */
+#screen-quiz .quiz-head { padding: 0 !important; flex-shrink: 0; gap: clamp(10px, 2vw, 20px); }
+#screen-quiz .quiz-head .meta .uf { font-size: clamp(9px, 1.1vh, 11px); margin-bottom: clamp(2px, 0.4vh, 6px) !important; }
+#screen-quiz .quiz-head .meta h2 { font-size: clamp(15px, 2.2vh, 26px) !important; margin: 0; }
+#screen-quiz .timer-ring { width: clamp(40px, 6vh, 64px) !important; height: clamp(40px, 6vh, 64px) !important; }
+#screen-quiz .timer-ring svg { width: 100%; height: 100%; }
+#screen-quiz .timer-ring .num { font-size: clamp(11px, 1.6vh, 16px); }
+#screen-quiz .question-card { padding: clamp(10px, 1.8vh, 28px) !important; margin: 0 !important; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; }
+#screen-quiz .question-card .q { font-size: clamp(13px, 1.9vh, 22px) !important; line-height: 1.3; margin: 0; }
+#screen-quiz .options { gap: clamp(6px, 1vh, 12px) !important; flex-shrink: 0; grid-template-columns: 1fr 1fr; }
+#screen-quiz .option { padding: clamp(8px, 1.4vh, 18px) clamp(10px, 1.5vw, 18px) !important; min-height: clamp(40px, 6vh, 80px) !important; gap: clamp(8px, 1.2vw, 14px); }
+#screen-quiz .option .text { font-size: clamp(11px, 1.5vh, 16px) !important; padding-top: 1px; line-height: 1.3; }
+#screen-quiz .option .letter { width: clamp(20px, 2.8vh, 28px); height: clamp(20px, 2.8vh, 28px); font-size: clamp(10px, 1.3vh, 13px); flex-shrink: 0; }
+#screen-quiz .option.selected::after { font-size: clamp(8px, 1vh, 10px); bottom: 4px; right: 8px; }
+#screen-quiz .feedback { padding: clamp(8px, 1.5vh, 22px) !important; margin: 0 !important; flex-shrink: 0; min-height: 0; overflow: hidden; }
+#screen-quiz .feedback-head { gap: clamp(6px, 1vw, 14px) !important; margin-bottom: clamp(4px, 0.8vh, 12px) !important; }
+#screen-quiz .feedback-head h3 { font-size: clamp(13px, 1.8vh, 18px) !important; margin: 0; }
+#screen-quiz .feedback-head .points { font-size: clamp(14px, 2vh, 22px) !important; }
+#screen-quiz .feedback-head .status-mark { width: clamp(20px, 2.8vh, 26px); height: clamp(20px, 2.8vh, 26px); }
+#screen-quiz .feedback p { font-size: clamp(10px, 1.4vh, 14px) !important; line-height: 1.4; margin: 0; }
+#screen-quiz .feedback .row-end { margin-top: clamp(6px, 1vh, 18px) !important; }
+#screen-quiz .feedback .btn { font-size: clamp(11px, 1.4vh, 14px) !important; padding: clamp(7px, 1vh, 12px) clamp(12px, 2vw, 22px); }
+
+/* SUGGEST */
+#screen-suggest .page-head { padding: 0 0 clamp(10px, 1.8vh, 24px) !important; flex-shrink: 0; }
+#screen-suggest .page-head .eyebrow { font-size: clamp(9px, 1.1vh, 11px); }
+#screen-suggest .section-title { font-size: clamp(16px, 2.6vh, 28px) !important; line-height: 1.15; }
+#screen-suggest .card-lg { padding: clamp(14px, 2.2vh, 32px) !important; flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#screen-suggest .card-lg .field { flex-shrink: 0; }
+#screen-suggest .card-lg .field:nth-of-type(2) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#screen-suggest .field-label { font-size: clamp(10px, 1.3vh, 13px); margin-bottom: clamp(4px, 0.8vh, 10px) !important; }
+#screen-suggest .dimensions { gap: clamp(4px, 0.8vw, 10px); }
+#screen-suggest .dim-chip { font-size: clamp(10px, 1.3vh, 13px); padding: clamp(5px, 0.8vh, 9px) clamp(10px, 1.5vw, 16px) !important; gap: 6px; }
+#screen-suggest .textarea { font-size: clamp(11px, 1.5vh, 15px); flex: 1; min-height: 0; }
+#screen-suggest .counter { font-size: clamp(9px, 1.1vh, 12px); }
+#screen-suggest .card-lg > div:last-child { flex-shrink: 0; gap: clamp(6px, 1vw, 12px); margin-top: clamp(10px, 1.8vh, 28px) !important; }
+#screen-suggest .card-lg .btn { font-size: clamp(11px, 1.4vh, 14px); padding: clamp(8px, 1.3vh, 14px) clamp(14px, 2vw, 24px); }
+
+/* RESULT */
+#screen-result .result-hero { padding: clamp(12px, 3vh, 56px) 0 clamp(8px, 1.6vh, 32px) !important; flex-shrink: 0; text-align: center; }
+#screen-result .result-hero .eyebrow { font-size: clamp(9px, 1.1vh, 11px); margin-bottom: clamp(6px, 1.2vh, 14px) !important; }
+#screen-result .result-hero h2 { font-size: clamp(24px, 5vh, 64px) !important; margin: 0; }
+#screen-result .result-stats { margin-top: clamp(10px, 2vh, 30px) !important; }
+#screen-result .result-stats > div { padding: clamp(8px, 1.4vh, 18px) clamp(14px, 2.5vw, 32px) !important; }
+#screen-result .result-stats .lbl { font-size: clamp(9px, 1.1vh, 11px) !important; }
+#screen-result .result-stats .val { font-size: clamp(18px, 3vh, 32px) !important; }
+#screen-result .badges-section { margin-top: clamp(14px, 2.5vh, 50px) !important; flex: 1; min-height: 0; overflow: hidden; }
+#screen-result .badges-section h3 { font-size: clamp(15px, 2vh, 22px); margin: 0; }
+#screen-result .badges-section .sub { font-size: clamp(10px, 1.2vh, 13px); margin-top: clamp(2px, 0.4vh, 6px) !important; }
+#screen-result .badge-tile { padding: clamp(10px, 1.5vh, 20px) !important; }
+#screen-result .badge-tile .name { font-size: clamp(12px, 1.5vh, 15px); margin: 0 0 4px; }
+#screen-result .badge-tile .desc { font-size: clamp(10px, 1.2vh, 12px); line-height: 1.4; }
+#screen-result .result-actions { margin-top: clamp(10px, 1.8vh, 36px) !important; flex-shrink: 0; gap: clamp(6px, 1vw, 12px); }
+#screen-result .result-actions .btn { font-size: clamp(11px, 1.4vh, 15px); padding: clamp(8px, 1.3vh, 16px) clamp(14px, 2vw, 28px); }
+
+/* MODAIS */
+.modal { max-height: 92vh; max-height: 92dvh; }
+.modal-head h3 { font-size: clamp(14px, 2vh, 20px) !important; }
+
+/* Landscape de celular — esconde elementos não-essenciais p/ caber */
+@media (max-height: 480px) and (orientation: landscape) {
+  .welcome-brand .eyebrow { display: none; }
+  .welcome-hero p { display: none; }
+  .how-to-play { display: none; }
+  #screen-map .page-head .lead { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ======= ICON SPRITE ======= -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6m12 5h1.5a2.5 2.5 0 0 0 0-5H18M6 4h12v6a6 6 0 0 1-12 0V4Zm6 12v4m-4 0h8"/></symbol>
+    <symbol id="i-medal" viewBox="0 0 24 24"><circle cx="12" cy="14" r="6"/><path d="m9 14.5 1 5L12 18l2 1.5 1-5M8 4l4 6 4-6M9 4h6"/></symbol>
+    <symbol id="i-x-mark" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============================================================
+     SCREEN 1 — WELCOME
+============================================================ -->
+<section id="screen-welcome" class="screen active">
+  <div class="container-sm">
+    <div class="welcome-brand">
+      <img src="D:\CONFEA\Enic\LogoInfraBR.png" alt="InfraBR" decoding="async" loading="eager" fetchpriority="high" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+      <div class="brand-fallback" style="display:none">Desafio<span>InfraBR</span></div>
+      <span class="eyebrow">CONFEA · ENIC 2026</span>
+    </div>
+
+    <div class="welcome-hero">
+      <h1 class="title">Pense soluções<br>para o <em>Brasil</em>.</h1>
+      <p>Participe do quiz e entenda um pouco mais do Infra-BR! Escolha um estado, responda o desafio e proponha sua solução.</p>
+    </div>
+
+    <div class="card card-lg welcome-card">
+      <label class="field">
+        <span class="field-label">Como devemos te chamar?</span>
+        <input id="player-name" class="input" type="text" maxlength="40" placeholder="Seu nome ou apelido">
+      </label>
+
+      <label class="checkbox" style="margin-top: 18px">
+        <input id="allow-display" type="checkbox" checked>
+        <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span class="text">Autorizo exibir meu nome no painel de sugestões e no ranking público.</span>
+      </label>
+
+      <div class="phone-field" id="phone-field-welcome" style="margin-top: 18px">
+        <span class="field-label" style="display:block;font-size:12px;color:var(--text-2);margin-bottom:8px">Registre o seu telefone se quiser concorrer à premiação <span style="color:var(--text-3);font-weight:400">(opcional)</span></span>
+        <div style="display:flex;gap:8px">
+          <input id="phone-cc-welcome"  class="input" type="text" inputmode="tel"     maxlength="5"  placeholder="+55"         value="+55" style="width:78px;text-align:center">
+          <input id="phone-num-welcome" class="input" type="text" inputmode="numeric" maxlength="13" placeholder="11 999999999" style="flex:1">
+        </div>
+      </div>
+
+      <div class="how-to-play">
+        <span class="lbl">Como responder</span>
+        <p style="margin:0">Em cada pergunta, <strong>toque/clique uma vez</strong> na alternativa para escolher.<br>Só após <strong>tocar/clicar novamente</strong> a resposta é confirmada.</p>
+      </div>
+
+      <button id="btn-start" class="btn btn-primary btn-lg btn-block" style="margin-top: 18px">
+        Iniciar desafio
+        <svg class="icon arrow"><use href="#i-arrow-right"/></svg>
+      </button>
+
+      <div class="row-end" style="margin-top: 18px">
+        <button id="btn-ranking-welcome" class="btn btn-ghost" style="font-size: 13px; padding: 8px 14px">
+          <svg class="icon-sm icon"><use href="#i-trophy"/></svg>
+          Ver ranking
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCREEN 2 — MAP / STATE PICKER
+============================================================ -->
+<section id="screen-map" class="screen">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="brand">
+        <img src="D:\CONFEA\Enic\LogoInfraBR.png" class="brand-logo" alt="InfraBR" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+        <div class="brand-fallback" style="display:none">Desafio<span>InfraBR</span></div>
+      </div>
+      <div class="greeting-block">
+        <div class="label">Olá</div>
+        <div class="name" id="hello-name">jogador</div>
+      </div>
+      <button class="metric" id="btn-ranking-map" type="button">
+        <svg class="icon"><use href="#i-trophy"/></svg>
+        Ranking
+      </button>
+      <button class="metric" id="btn-badges-hud" type="button">
+        <svg class="icon"><use href="#i-medal"/></svg>
+        <span class="num" id="hud-badges">0</span>
+      </button>
+      <div class="metric" style="cursor: default">
+        <span style="color: var(--text-3); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase">Pontos</span>
+        <span class="num" id="hud-score">0</span>
+      </div>
+      <button class="metric" id="btn-logout-map" type="button" title="Encerrar sessão e passar a vez">
+        <svg class="icon"><use href="#i-logout"/></svg>
+        Sair
+      </button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="page-head">
+      <h2 class="section-title">Selecione um estado para analisar.</h2>
+      <p class="lead">Você pode tocar no mapa do Brasil ou usar o seletor abaixo. Os estados são coloridos pelo índice oficial do InfraBR.</p>
+    </div>
+
+    <div class="card state-card" style="padding: 0">
+      <div class="state-card-top">
+        <span class="label">Estado</span>
+        <div class="dropdown" id="state-dd">
+          <button type="button" class="dropdown-trigger" id="state-dd-trigger">
+            <span id="state-dd-value" class="placeholder">— Selecione um estado —</span>
+            <svg class="icon chevron"><use href="#i-chevron-down"/></svg>
+          </button>
+          <div class="dropdown-menu" id="state-dd-menu">
+            <div class="dropdown-search">
+              <input type="text" id="state-dd-search" placeholder="Buscar estado…" autocomplete="off">
+            </div>
+            <div id="state-dd-options"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-go-state">
+          Avançar
+          <svg class="icon arrow"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+
+      <div class="difficulty-bar" id="difficulty-bar">
+        <span class="label">Nível</span>
+        <div class="diff-chips">
+          <button type="button" class="diff-chip selected" data-diff="easy"><span class="dot" style="background:#B5D043"></span>Fácil</button>
+          <button type="button" class="diff-chip" data-diff="medium"><span class="dot" style="background:#FAD040"></span>Médio</button>
+          <button type="button" class="diff-chip" data-diff="hard"><span class="dot" style="background:#EE7C2A"></span>Difícil</button>
+        </div>
+      </div>
+
+      <svg id="brazil-map" viewBox="0 0 700 660" preserveAspectRatio="xMidYMid meet"></svg>
+
+      <div class="legend">
+        <div class="legend-item"><span class="swatch" style="background:#2E9D3F"></span>Alta</div>
+        <div class="legend-item"><span class="swatch" style="background:#B5D043"></span>Boa</div>
+        <div class="legend-item"><span class="swatch" style="background:#FAD040"></span>Média</div>
+        <div class="legend-item"><span class="swatch" style="background:#EE7C2A"></span>Baixa</div>
+        <div class="legend-item"><span class="swatch" style="background:#C8252C"></span>Crítica</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCREEN 3 — QUIZ
+============================================================ -->
+<section id="screen-quiz" class="screen">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="brand">
+        <img src="D:\CONFEA\Enic\LogoInfraBR.png" class="brand-logo" alt="InfraBR" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+        <div class="brand-fallback" style="display:none">Desafio<span>InfraBR</span></div>
+      </div>
+      <div class="greeting-block">
+        <div class="label">Pontos</div>
+        <div class="name" style="font-family: 'Bricolage Grotesque'; font-weight: 700; font-size: 18px"><span id="hud-score-2">0</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-md">
+    <div class="quiz-head">
+      <div class="meta">
+        <div class="uf" id="quiz-state-label">ESTADO</div>
+        <h2 id="quiz-dimension-label">Eixo</h2>
+      </div>
+      <div class="timer-ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+          <circle id="timer-circle" cx="32" cy="32" r="30" fill="none" stroke="var(--green-light)" stroke-width="3" stroke-linecap="round" stroke-dashoffset="0"/>
+        </svg>
+        <span class="num" id="timer-text">20</span>
+      </div>
+    </div>
+
+    <div class="card question-card">
+      <p class="q" id="quiz-question">Carregando…</p>
+    </div>
+
+    <div class="options" id="quiz-options"></div>
+
+    <div class="card feedback" id="quiz-feedback">
+      <div class="feedback-head">
+        <span class="status-mark" id="feedback-mark"><svg class="icon"><use href="#i-check"/></svg></span>
+        <h3 id="feedback-title">Correto</h3>
+        <span class="points" id="feedback-points">+0</span>
+      </div>
+      <p id="feedback-text"></p>
+      <div class="row-end" style="margin-top: 18px">
+        <button id="btn-after-feedback" class="btn btn-primary">
+          Continuar
+          <svg class="icon arrow"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCREEN 4 — SUGGEST
+============================================================ -->
+<section id="screen-suggest" class="screen">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="brand">
+        <img src="D:\CONFEA\Enic\LogoInfraBR.png" class="brand-logo" alt="InfraBR" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+        <div class="brand-fallback" style="display:none">Desafio<span>InfraBR</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-md">
+    <div class="page-head">
+      <span class="eyebrow">Sua ideia</span>
+      <h2 class="section-title" style="margin-top: 12px; font-size: 32px">
+        Que solução você sugeriria<br>para <span id="suggest-state-label" style="color: var(--accent)">o estado</span>?
+      </h2>
+    </div>
+
+    <div class="card card-lg">
+      <label class="field" style="margin-bottom: 22px">
+        <span class="field-label">Sobre qual eixo do InfraBR é sua ideia?</span>
+        <div class="dimensions" id="dimension-picker"></div>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Sua sugestão</span>
+        <textarea id="suggestion-text" class="textarea" rows="5" maxlength="280" placeholder="Se você pudesse propor uma obra, política pública ou solução técnica…"></textarea>
+        <div class="counter">
+          <span>Será exibida no painel do estande.</span>
+          <span><span id="suggest-counter">0</span> / 280</span>
+        </div>
+      </label>
+
+      <div style="display: flex; gap: 10px; margin-top: 28px">
+        <button id="btn-skip-suggest" class="btn btn-outline" style="flex: 1">Pular</button>
+        <button id="btn-send-suggest" class="btn btn-primary" style="flex: 2">
+          Enviar sugestão
+          <svg class="icon arrow"><use href="#i-arrow-right"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SCREEN 5 — RESULT
+============================================================ -->
+<section id="screen-result" class="screen">
+  <header class="app-header">
+    <div class="app-header-inner">
+      <div class="brand">
+        <img src="D:\CONFEA\Enic\LogoInfraBR.png" class="brand-logo" alt="InfraBR" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+        <div class="brand-fallback" style="display:none">Desafio<span>InfraBR</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="result-hero">
+      <span class="eyebrow">Rodada concluída</span>
+      <h2 id="result-headline">Mandou bem.</h2>
+      <div class="result-stats">
+        <div>
+          <div class="lbl">Pontos da rodada</div>
+          <div class="val accent" id="result-round-pts">+0</div>
+        </div>
+        <div>
+          <div class="lbl">Total acumulado</div>
+          <div class="val" id="result-total-pts">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="badges-section" id="new-badges-section" style="display: none">
+      <div class="head">
+        <h3>Selos conquistados nesta rodada</h3>
+        <div class="sub">Você pode acompanhar todos os seus selos no menu</div>
+      </div>
+      <div class="badge-grid" id="new-badges-grid"></div>
+    </div>
+
+    <div id="phone-prize-section" style="display:none;margin-top:14px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px">
+      <div style="font-size:11px;color:var(--accent);letter-spacing:0.14em;text-transform:uppercase;font-weight:500;margin-bottom:6px">Concorra à premiação</div>
+      <p style="margin:0 0 10px;font-size:13px;color:var(--text-2)">Registre o seu telefone se quiser concorrer à premiação <span style="color:var(--text-3)">(opcional)</span>.</p>
+      <div style="display:flex;gap:8px;align-items:stretch;flex-wrap:wrap">
+        <input id="phone-cc-result"  class="input" type="text" inputmode="tel"     maxlength="5"  value="+55"                  style="width:78px;text-align:center;padding:10px 12px;font-size:13px">
+        <input id="phone-num-result" class="input" type="text" inputmode="numeric" maxlength="13" placeholder="31 987510985"    style="flex:1;min-width:140px;padding:10px 12px;font-size:13px">
+        <button id="btn-save-phone" class="btn btn-primary" style="padding:10px 16px;font-size:13px;white-space:nowrap">Registrar</button>
+      </div>
+      <div id="phone-feedback" style="margin-top:8px;font-size:12px;color:var(--accent);min-height:14px"></div>
+    </div>
+
+    <div class="result-actions">
+      <button id="btn-play-again" class="btn btn-primary btn-lg">
+        Jogar novamente
+        <svg class="icon arrow"><use href="#i-arrow-right"/></svg>
+      </button>
+      <button id="btn-see-badges" class="btn btn-outline">
+        <svg class="icon"><use href="#i-medal"/></svg>
+        Meus selos
+      </button>
+      <button id="btn-result-ranking" class="btn btn-ghost">
+        <svg class="icon"><use href="#i-trophy"/></svg>
+        Ranking
+      </button>
+      <button id="btn-logout-result" class="btn btn-ghost">
+        <svg class="icon"><use href="#i-logout"/></svg>
+        Encerrar sessão
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     MODAL: RANKING
+============================================================ -->
+<div id="modal-ranking" class="modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Ranking</h3>
+      <button class="btn btn-ghost btn-icon modal-close" type="button"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body" id="ranking-list">
+      <p class="muted" style="text-align: center; padding: 32px 0">Carregando…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: MY BADGES
+============================================================ -->
+<div id="modal-badges" class="modal-bg">
+  <div class="modal" style="max-width: 720px">
+    <div class="modal-head">
+      <h3>Meus selos</h3>
+      <button class="btn btn-ghost btn-icon modal-close" type="button"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body" id="badges-list">
+      <p class="muted" style="text-align: center; padding: 32px 0">Carregando…</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================== CONFIG ================== */
+const SUPABASE_URL      = 'https://oeprhrwajdqxtcotcccx.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_K2bzdLJx6KZUBc5cGjhHqA_nw17dDxM';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  realtime: { params: { eventsPerSecond: 5 } }
+});
+
+/* ================== DATA ================== */
+const STATES = {
+  AC:{name:'Acre',regiao:'norte',score:'red'},      AL:{name:'Alagoas',regiao:'nordeste',score:'red'},
+  AP:{name:'Amapá',regiao:'norte',score:'orange'},  AM:{name:'Amazonas',regiao:'norte',score:'red'},
+  BA:{name:'Bahia',regiao:'nordeste',score:'yellow'},CE:{name:'Ceará',regiao:'nordeste',score:'orange'},
+  DF:{name:'Distrito Federal',regiao:'centro_oeste',score:'green'},
+  ES:{name:'Espírito Santo',regiao:'sudeste',score:'lightgreen'},
+  GO:{name:'Goiás',regiao:'centro_oeste',score:'lightgreen'},
+  MA:{name:'Maranhão',regiao:'nordeste',score:'red'},
+  MT:{name:'Mato Grosso',regiao:'centro_oeste',score:'lightgreen'},
+  MS:{name:'Mato Grosso do Sul',regiao:'centro_oeste',score:'lightgreen'},
+  MG:{name:'Minas Gerais',regiao:'sudeste',score:'green'},
+  PA:{name:'Pará',regiao:'norte',score:'red'},      PB:{name:'Paraíba',regiao:'nordeste',score:'orange'},
+  PR:{name:'Paraná',regiao:'sul',score:'green'},    PE:{name:'Pernambuco',regiao:'nordeste',score:'orange'},
+  PI:{name:'Piauí',regiao:'nordeste',score:'orange'},RJ:{name:'Rio de Janeiro',regiao:'sudeste',score:'green'},
+  RN:{name:'Rio Grande do Norte',regiao:'nordeste',score:'orange'},
+  RS:{name:'Rio Grande do Sul',regiao:'sul',score:'lightgreen'},
+  RO:{name:'Rondônia',regiao:'norte',score:'yellow'},RR:{name:'Roraima',regiao:'norte',score:'orange'},
+  SC:{name:'Santa Catarina',regiao:'sul',score:'green'},SP:{name:'São Paulo',regiao:'sudeste',score:'green'},
+  SE:{name:'Sergipe',regiao:'nordeste',score:'yellow'},TO:{name:'Tocantins',regiao:'norte',score:'yellow'}
+};
+const SCORE_COLORS = { green:'#2E9D3F', lightgreen:'#B5D043', yellow:'#FAD040', orange:'#EE7C2A', red:'#C8252C' };
+const DIMENSIONS = [
+  {key:'energia',       label:'Energia & Conectividade', color:'#FAD040'},
+  {key:'mobilidade',    label:'Mobilidade',              color:'#2E9D3F'},
+  {key:'agua',          label:'Água',                    color:'#2563EB'},
+  {key:'saneamento',    label:'Saneamento Básico',       color:'#B5D043'},
+  {key:'bem_estar',     label:'Bem-estar Social',        color:'#EE7C2A'},
+  {key:'meio_ambiente', label:'Meio Ambiente',           color:'#2E9D3F'}
+];
+const QUIZ_TIME_MS = 20000;
+
+/* ================== STATE ================== */
+const app = { player: null, deviceId: null, currentState: null, currentQuestion: null, questionStart: 0, timerInterval: null, roundPoints: 0, newBadges: [], pendingAnswer: -1, difficulty: 'easy', roundQueue: [], roundIndex: 0, roundSize: 3, roundAnsweredIds: [] };
+const DIFFICULTY_MULTIPLIER = { easy: 1.0, medium: 1.25, hard: 1.5 };
+const DIFFICULTY_LABEL = { easy: 'Fácil', medium: 'Médio', hard: 'Difícil' };
+
+function getDeviceId() {
+  let id = localStorage.getItem('infrabr_device_id');
+  if (!id) { id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('infrabr_device_id', id); }
+  return id;
+}
+app.deviceId = getDeviceId();
+
+/* ================== NAV ================== */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ================== CUSTOM DROPDOWN ================== */
+const dd = {
+  el: null, trigger: null, value: null, menu: null, options: null, search: null,
+  selected: '',
+  init() {
+    this.el       = document.getElementById('state-dd');
+    this.trigger  = document.getElementById('state-dd-trigger');
+    this.value    = document.getElementById('state-dd-value');
+    this.menu     = document.getElementById('state-dd-menu');
+    this.options  = document.getElementById('state-dd-options');
+    this.search   = document.getElementById('state-dd-search');
+    this.populate();
+    this.trigger.addEventListener('click', () => this.toggle());
+    this.search.addEventListener('input', () => this.filter());
+    document.addEventListener('click', e => { if (!this.el.contains(e.target)) this.close(); });
+  },
+  populate() {
+    const list = Object.entries(STATES).sort((a,b) => a[1].name.localeCompare(b[1].name));
+    this.options.innerHTML = list.map(([uf,o]) => {
+      const color = SCORE_COLORS[o.score];
+      return `<button type="button" class="dropdown-option" data-uf="${uf}">
+        <span class="dot" style="background:${color}"></span>
+        <span class="uf">${uf}</span>
+        <span>${o.name}</span>
+      </button>`;
+    }).join('');
+    this.options.querySelectorAll('.dropdown-option').forEach(btn => {
+      btn.addEventListener('click', () => this.select(btn.dataset.uf));
+    });
+  },
+  toggle() { this.el.classList.toggle('open'); if (this.el.classList.contains('open')) setTimeout(() => this.search.focus(), 50); },
+  close()  { this.el.classList.remove('open'); this.search.value = ''; this.filter(); },
+  select(uf) {
+    this.selected = uf;
+    const s = STATES[uf];
+    this.value.classList.remove('placeholder');
+    this.value.innerHTML = `<span style="display:inline-flex;align-items:center;gap:10px"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${SCORE_COLORS[s.score]}"></span><span style="color:var(--text-3);font-family:ui-monospace,monospace;font-size:12px">${uf}</span> ${s.name}</span>`;
+    this.close();
+  },
+  filter() {
+    const q = this.search.value.trim().toLowerCase();
+    this.options.querySelectorAll('.dropdown-option').forEach(btn => {
+      const uf = btn.dataset.uf;
+      const name = STATES[uf].name.toLowerCase();
+      btn.style.display = (!q || uf.toLowerCase().includes(q) || name.includes(q)) ? '' : 'none';
+    });
+  },
+  getValue() { return this.selected; }
+};
+
+/* ================== MAP (D3) ================== */
+const GEOJSON_URL = 'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@master/public/data/brazil-states.geojson';
+let mapInitialized = false;
+
+async function initMap() {
+  if (mapInitialized) return;
+  mapInitialized = true;
+  const svg = d3.select('#brazil-map');
+  const w = 700, h = 660;
+  try {
+    const geo = await d3.json(GEOJSON_URL);
+    const projection = d3.geoMercator().fitSize([w, h], geo);
+    const path = d3.geoPath(projection);
+    const NAME_TO_UF = {};
+    Object.entries(STATES).forEach(([uf,o]) => NAME_TO_UF[o.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()] = uf);
+    geo.features.forEach(f => {
+      const norm = (f.properties.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      f.uf = NAME_TO_UF[norm] || null;
+    });
+    svg.selectAll('path.uf-path')
+      .data(geo.features)
+      .enter().append('path')
+        .attr('class', 'uf-path')
+        .attr('d', path)
+        .attr('fill', d => SCORE_COLORS[STATES[d.uf]?.score] || '#666')
+        .attr('data-uf', d => d.uf)
+        .on('click', (e,d) => d.uf && selectState(d.uf));
+    svg.selectAll('text.uf-label')
+      .data(geo.features.filter(f => f.uf))
+      .enter().append('text')
+        .attr('class', 'uf-label')
+        .attr('transform', d => `translate(${path.centroid(d)})`)
+        .text(d => d.uf);
+  } catch (err) {
+    console.error('Erro carregando mapa', err);
+    svg.append('text').attr('x', w/2).attr('y', h/2).attr('fill','currentColor').attr('text-anchor','middle')
+       .text('Mapa indisponível — use o seletor acima');
+  }
+}
+
+async function markPlayedStates() {
+  if (!app.player) return;
+  const { data } = await sb.from('answers').select('question_id, questions(state_uf)').eq('player_id', app.player.id);
+  if (!data) return;
+  const played = new Set(data.map(a => a.questions?.state_uf).filter(Boolean));
+  d3.selectAll('.uf-path').classed('played', d => played.has(d.uf));
+}
+
+function resetDifficultyToEasy() {
+  app.difficulty = 'easy';
+  document.querySelectorAll('#difficulty-bar .diff-chip').forEach(c => {
+    c.classList.toggle('selected', c.dataset.diff === 'easy');
+  });
+}
+
+/* ================== LOGIN PLAYER ================== */
+async function loginPlayer(name, allowDisplay, phoneToSave) {
+  try {
+    // 1) Se informou telefone, tenta achar jogador pelo telefone (identidade que volta).
+    let existing = null;
+    if (phoneToSave) {
+      const { data: phRow } = await sb.from('player_phones').select('player_id').eq('phone', phoneToSave).maybeSingle();
+      if (phRow && phRow.player_id) {
+        const { data: pl } = await sb.from('players').select('*').eq('id', phRow.player_id).maybeSingle();
+        if (pl) existing = pl;
+      }
+    }
+
+    // 2) Sem telefone OU telefone novo: tenta achar pelo par (device_id, name) — compatibilidade.
+    if (!existing) {
+      const { data: byPair } = await sb.from('players').select('*')
+        .eq('device_id', app.deviceId).eq('name', name).maybeSingle();
+      if (byPair) existing = byPair;
+    }
+
+    // 3) Antes de criar novo, verifica colisão de NOME (qualquer outro jogador com mesmo nome).
+    if (!existing) {
+      const { data: nameClash } = await sb.from('players').select('id').eq('name', name).limit(1).maybeSingle();
+      if (nameClash) {
+        alert('Esse nome já está em uso por outro jogador. Por favor, escolha um nome diferente.');
+        return false;
+      }
+    }
+
+    if (existing) {
+      // Atualiza nome (caso esteja voltando pelo telefone com nome novo) e flag de display
+      const updates = {};
+      if (existing.name !== name)                  updates.name = name;
+      if (existing.allow_display !== allowDisplay) updates.allow_display = allowDisplay;
+      if (Object.keys(updates).length) {
+        const { error: upErr } = await sb.from('players').update(updates).eq('id', existing.id);
+        if (upErr && upErr.code === '23505') {
+          alert('Esse nome já está em uso por outro jogador. Por favor, escolha um nome diferente.');
+          return false;
+        }
+        Object.assign(existing, updates);
+      }
+      app.player = existing;
+    } else {
+      const { data, error } = await sb.from('players').insert({ name, device_id: app.deviceId, allow_display: allowDisplay }).select().single();
+      if (error) throw error;
+      app.player = data;
+    }
+
+    // ----- Premiação: telefone fica em tabela separada (player_phones) -----
+    if (phoneToSave) {
+      try {
+        await sb.from('player_phones').upsert(
+          { player_id: app.player.id, phone: phoneToSave, updated_at: new Date().toISOString() },
+          { onConflict: 'player_id' }
+        );
+        app.player.has_phone = true;
+      } catch (_) { app.player.has_phone = false; }
+    } else {
+      const { data: rv } = await sb.from('ranking_view').select('has_phone').eq('id', app.player.id).maybeSingle();
+      app.player.has_phone = !!(rv && rv.has_phone);
+    }
+    document.getElementById('hello-name').textContent = app.player.name;
+    const score = app.player.total_score || 0;
+    document.getElementById('hud-score').textContent = score;
+    document.getElementById('hud-score-2').textContent = score;
+    return true;
+  } catch (e) {
+    alert('Não foi possível iniciar: ' + (e.message || e));
+    return false;
+  }
+}
+
+/* ================== QUIZ ================== */
+async function selectState(uf) {
+  app.currentState = uf;
+  document.getElementById('quiz-state-label').textContent = STATES[uf].name;
+
+  // 1) Busca perguntas ativas do estado FILTRANDO PELA DIFICULDADE ESCOLHIDA.
+  const { data: questions } = await sb.from('questions')
+    .select('*')
+    .eq('state_uf', uf)
+    .eq('active', true)
+    .eq('difficulty', app.difficulty);
+  if (!questions || !questions.length) {
+    alert('Ainda não há perguntas no nível ' + DIFFICULTY_LABEL[app.difficulty] + ' cadastradas para ' + STATES[uf].name + '. Tente outro nível ou outro estado.');
+    return;
+  }
+
+  // 2) Contagem de vezes que o jogador já respondeu cada pergunta (limite: 2 vezes globais).
+  const { data: answered } = await sb.from('answers').select('question_id').eq('player_id', app.player.id);
+  const askedCount = new Map();
+  (answered||[]).forEach(a => askedCount.set(a.question_id, (askedCount.get(a.question_id)||0) + 1));
+
+  // 3) Pool: prioridade total para perguntas NUNCA feitas; em seguida, feitas 1 vez; nunca uma 3ª vez.
+  //    Além disso, exclui as que já apareceram nesta MESMA partida (mesma rodada).
+  const usedInRound = new Set(app.roundAnsweredIds || []);
+  const tier0 = questions.filter(q => !askedCount.has(q.id) && !usedInRound.has(q.id));
+  const tier1 = questions.filter(q => (askedCount.get(q.id) || 0) === 1 && !usedInRound.has(q.id));
+  // tier3 (já respondida 2x) NÃO entra: nunca pergunta uma 3ª vez para o mesmo jogador.
+
+  // Embaralha e monta a fila da rodada (até roundSize=3).
+  const shuffle = arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+  const pool = [...shuffle(tier0), ...shuffle(tier1)];
+  if (!pool.length) {
+    alert('Você já respondeu todas as perguntas disponíveis para ' + STATES[uf].name + ' no nível ' + DIFFICULTY_LABEL[app.difficulty] + '. Escolha outro estado ou outro nível.');
+    return;
+  }
+  app.roundQueue = pool.slice(0, app.roundSize);
+  app.roundIndex = 0;
+  app.roundPoints = 0;
+  app.newBadges = [];
+  app.roundAnsweredIds = [];
+
+  loadNextRoundQuestion();
+}
+
+function loadNextRoundQuestion() {
+  if (app.roundIndex >= app.roundQueue.length) return false;
+  app.currentQuestion = app.roundQueue[app.roundIndex];
+  app.roundAnsweredIds.push(app.currentQuestion.id);
+  renderQuiz();
+  showScreen('screen-quiz');
+  return true;
+}
+
+function renderQuiz() {
+  const q = app.currentQuestion;
+  const dim = DIMENSIONS.find(d => d.key === q.dimension) || { label: q.dimension };
+  const ufLabel = document.getElementById('quiz-state-label');
+  if (ufLabel) ufLabel.textContent = STATES[app.currentState].name + ' · ' + DIFFICULTY_LABEL[app.difficulty] + ' · ' + (app.roundIndex+1) + '/' + app.roundQueue.length;
+  document.getElementById('quiz-dimension-label').textContent = dim.label;
+  document.getElementById('quiz-question').textContent = q.question_text;
+
+  const c = document.getElementById('quiz-options');
+  c.innerHTML = '';
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    const letter = String.fromCharCode(65 + i);
+    btn.className = 'option';
+    btn.dataset.index = i;
+    btn.dataset.letter = letter;
+    btn.innerHTML = `<span class="letter">${letter}</span><span class="text">${opt}</span>`;
+    btn.addEventListener('click', () => onOptionClick(i));
+    c.appendChild(btn);
+  });
+  app.pendingAnswer = -1;
+  document.getElementById('quiz-feedback').classList.remove('show');
+  startTimer();
+}
+
+function onOptionClick(i) {
+  if (app.pendingAnswer === i) {
+    // Segundo toque na MESMA alternativa → confirma
+    answerQuestion(i);
+  } else {
+    // Primeiro toque (ou troca de seleção)
+    app.pendingAnswer = i;
+    document.querySelectorAll('.option').forEach(b => {
+      b.classList.toggle('selected', parseInt(b.dataset.index) === i);
+    });
+  }
+}
+
+function startTimer() {
+  app.questionStart = Date.now();
+  const circle = document.getElementById('timer-circle');
+  const text   = document.getElementById('timer-text');
+  const ring   = document.querySelector('.timer-ring');
+  const C = 188.5;
+  ring.className = 'timer-ring';
+  clearInterval(app.timerInterval);
+  app.timerInterval = setInterval(() => {
+    const elapsed = Date.now() - app.questionStart;
+    const ratio = Math.min(elapsed / QUIZ_TIME_MS, 1);
+    circle.setAttribute('stroke-dashoffset', C * ratio);
+    text.textContent = Math.max(0, Math.ceil((QUIZ_TIME_MS - elapsed)/1000));
+    if (ratio < 0.5)        { ring.className = 'timer-ring';          circle.setAttribute('stroke', 'var(--green-light)'); }
+    else if (ratio < 0.75)  { ring.className = 'timer-ring warn';     circle.setAttribute('stroke', 'var(--yellow)'); }
+    else if (ratio < 0.90)  { ring.className = 'timer-ring danger';   circle.setAttribute('stroke', 'var(--orange)'); }
+    else                    { ring.className = 'timer-ring critical'; circle.setAttribute('stroke', 'var(--red)'); }
+    if (ratio >= 1) {
+      clearInterval(app.timerInterval);
+      // Estourou: se houver alternativa selecionada com 1 clique, considera-a; senão é "sem resposta"
+      answerQuestion(app.pendingAnswer >= 0 ? app.pendingAnswer : -1, true);
+    }
+  }, 100);
+}
+
+async function answerQuestion(selectedIndex, isTimeout = false) {
+  clearInterval(app.timerInterval);
+  const ring = document.querySelector('.timer-ring');
+  if (ring) ring.className = 'timer-ring';
+  const q = app.currentQuestion;
+  const elapsed = Date.now() - app.questionStart;
+  const isCorrect = selectedIndex !== -1 && selectedIndex === q.correct_index;
+  let points = 0;
+  if (isCorrect) {
+    let raw;
+    if (isTimeout) {
+      // Estourou e ele tinha algo selecionado com 1 clique → pontuação MÍNIMA de acerto
+      raw = 100;
+    } else {
+      // Confirmou a tempo (2 cliques) → 100 base + bônus por velocidade.
+      // Granularidade de 50ms por ponto: diferencia respostas muito próximas
+      // sem inflar a pontuação. Bônus máximo = 400 (resposta instantânea).
+      const remainingMs = Math.max(0, QUIZ_TIME_MS - elapsed);
+      const speedBonus = Math.max(1, Math.round(remainingMs / 50));
+      raw = 100 + speedBonus;  // entre 101 e 500
+    }
+    // Multiplicador por dificuldade (moderado, mantém faixa não-exorbitante):
+    const mult = DIFFICULTY_MULTIPLIER[q.difficulty] || 1.0;
+    points = Math.round(raw * mult);
+  }
+
+  document.querySelectorAll('.option').forEach(b => {
+    b.disabled = true;
+    b.classList.remove('selected');
+    const idx = parseInt(b.dataset.index);
+    if (idx === q.correct_index) b.classList.add('correct');
+    else if (idx === selectedIndex) b.classList.add('wrong');
+    else b.classList.add('dim');
+  });
+
+  if (selectedIndex !== -1) {
+    // attempt_number = quantas vezes este jogador JÁ respondeu esta pergunta + 1
+    const { data: priorAttempts } = await sb.from('answers')
+      .select('attempt_number')
+      .eq('player_id', app.player.id).eq('question_id', q.id);
+    const attempt = ((priorAttempts || []).reduce((m,r) => Math.max(m, r.attempt_number||1), 0)) + 1;
+    await sb.from('answers').insert({
+      player_id: app.player.id, question_id: q.id, selected_index: selectedIndex,
+      is_correct: isCorrect, time_taken_ms: elapsed, points_earned: points,
+      attempt_number: attempt
+    });
+  }
+
+  if (isCorrect) {
+    app.roundPoints += points;
+    app.player.total_score = (app.player.total_score || 0) + points;
+    document.getElementById('hud-score').textContent = app.player.total_score;
+    document.getElementById('hud-score-2').textContent = app.player.total_score;
+    await sb.from('players').update({ total_score: app.player.total_score }).eq('id', app.player.id);
+  }
+
+  const fb = document.getElementById('quiz-feedback');
+  fb.classList.add('show');
+  const mark = document.getElementById('feedback-mark');
+  mark.className = 'status-mark ' + (isCorrect ? 'ok' : (selectedIndex === -1 ? 'tm' : 'no'));
+  mark.innerHTML = `<svg class="icon"><use href="#${isCorrect ? 'i-check' : (selectedIndex === -1 ? 'i-clock' : 'i-x-mark')}"/></svg>`;
+  document.getElementById('feedback-title').textContent = isCorrect ? 'Resposta correta' : (selectedIndex === -1 ? 'Tempo esgotado' : 'Resposta incorreta');
+  const pts = document.getElementById('feedback-points');
+  pts.textContent = isCorrect ? `+${points}` : '0';
+  pts.classList.toggle('muted', !isCorrect);
+  document.getElementById('feedback-text').textContent = q.explanation;
+}
+
+/* ================== SUGGEST ================== */
+function renderDimensionPicker() {
+  const c = document.getElementById('dimension-picker');
+  c.innerHTML = '';
+  DIMENSIONS.forEach(d => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dim-chip';
+    b.dataset.key = d.key;
+    b.innerHTML = `<span class="dot" style="background:${d.color}"></span>${d.label}`;
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.dim-chip').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+    });
+    c.appendChild(b);
+  });
+}
+
+async function sendSuggestion(skip) {
+  const text = document.getElementById('suggestion-text').value.trim();
+  const selected = document.querySelector('.dim-chip.selected');
+  if (!skip) {
+    if (!text) { alert('Escreva sua sugestão ou clique em Pular.'); return; }
+    if (!selected) { alert('Selecione um eixo do InfraBR.'); return; }
+    await sb.from('suggestions').insert({
+      player_id: app.player.id, state_uf: app.currentState,
+      dimension: selected.dataset.key, text,
+      display_name: app.player.allow_display ? app.player.name : null
+    });
+  }
+  await checkBadges();
+  await showResult();
+}
+
+/* ================== BADGES ================== */
+async function checkBadges() {
+  app.newBadges = [];
+  const [{data: badges}, {data: earned}, {data: answers}, {data: suggestions}] = await Promise.all([
+    sb.from('badges').select('*').eq('active', true),
+    sb.from('player_badges').select('badge_id').eq('player_id', app.player.id),
+    sb.from('answers').select('is_correct, time_taken_ms, points_earned, questions(state_uf, dimension)').eq('player_id', app.player.id),
+    sb.from('suggestions').select('id, state_uf').eq('player_id', app.player.id)
+  ]);
+  const earnedIds = new Set((earned||[]).map(e => e.badge_id));
+  const correctAns = (answers||[]).filter(a => a.is_correct);
+
+  for (const badge of (badges||[])) {
+    if (earnedIds.has(badge.id)) continue;
+    const c = badge.criteria || {};
+    let ok = false;
+    switch (c.type) {
+      case 'correct_in_dimension':
+        ok = correctAns.filter(a => a.questions?.dimension === c.dimension).length >= (c.value||1); break;
+      case 'correct_in_region':
+        ok = correctAns.filter(a => STATES[a.questions?.state_uf]?.regiao === c.region).length >= (c.value||1); break;
+      case 'suggestions_count':
+        ok = (suggestions||[]).length >= (c.value||1); break;
+      case 'fast_correct':
+        ok = correctAns.some(a => a.time_taken_ms <= (c.value||10000)); break;
+      case 'states_visited':
+        ok = new Set(correctAns.map(a => a.questions?.state_uf).filter(Boolean)).size >= (c.value||1); break;
+      case 'all_regions_visited':
+        ok = new Set(correctAns.map(a => STATES[a.questions?.state_uf]?.regiao).filter(Boolean)).size >= 5; break;
+      case 'total_score':
+        ok = (app.player.total_score||0) >= (c.value||1); break;
+    }
+    if (ok) {
+      const { error } = await sb.from('player_badges').insert({ player_id: app.player.id, badge_id: badge.id });
+      if (!error) app.newBadges.push(badge);
+    }
+  }
+}
+
+/* ================== RESULT ================== */
+async function showResult() {
+  document.getElementById('result-round-pts').textContent = '+' + app.roundPoints;
+  document.getElementById('result-total-pts').textContent = app.player.total_score || 0;
+  const messages = ['Mandou bem.', 'Brilhou.', 'Pensou como engenheiro.', 'Inspirador.', 'Soluções na medida.'];
+  document.getElementById('result-headline').textContent = messages[Math.floor(Math.random()*messages.length)];
+
+  const sec = document.getElementById('new-badges-section');
+  const grid = document.getElementById('new-badges-grid');
+  grid.innerHTML = '';
+  if (app.newBadges.length) {
+    sec.style.display = 'block';
+    app.newBadges.forEach((b, i) => {
+      const card = document.createElement('div');
+      card.className = 'badge-tile new';
+      card.style.animationDelay = (i*0.08) + 's';
+      card.innerHTML = `<span class="stripe" style="background:${b.color || 'var(--accent)'}"></span>
+        <p class="name">${b.name}</p>
+        <p class="desc">${b.description}</p>`;
+      grid.appendChild(card);
+    });
+  } else {
+    sec.style.display = 'none';
+  }
+
+  await sb.from('players').update({ games_played: (app.player.games_played||0)+1 }).eq('id', app.player.id);
+  app.player.games_played = (app.player.games_played||0)+1;
+  // Mostra ou oculta o bloco "registre seu telefone" conforme status do jogador
+  const phoneSec = document.getElementById('phone-prize-section');
+  const phoneFb  = document.getElementById('phone-feedback');
+  if (phoneSec) {
+    if (app.player.has_phone) {
+      phoneSec.style.display = 'none';
+    } else {
+      phoneSec.style.display = 'block';
+      if (phoneFb) phoneFb.textContent = '';
+    }
+  }
+  showScreen('screen-result');
+}
+
+/* ================== RANKING + BADGES MODAL ================== */
+async function openRanking() {
+  const m = document.getElementById('modal-ranking');
+  m.classList.add('show');
+  const { data } = await sb.from('ranking_view').select('*').limit(20);
+  const list = document.getElementById('ranking-list');
+  if (!data || !data.length) { list.innerHTML = '<p class="muted" style="text-align:center;padding:32px 0">Sem participantes ainda.</p>'; return; }
+  list.innerHTML = '';
+  data.forEach((p, i) => {
+    const display = p.allow_display ? p.name : 'Anônimo';
+    const isMe = app.player && p.id === app.player.id;
+    const prize = p.has_phone ? ' <span title="Concorrendo à premiação" style="font-size:12px">💎</span>' : '';
+    const icons = Array.isArray(p.badge_icons)
+      ? p.badge_icons.slice(0, 6).map(b => `<span title="${escapeHtml(b.name||'')}" style="font-size:13px;margin-right:2px">${b.icon||'🏅'}</span>`).join('')
+      : '';
+    const iconsBlock = icons ? ` <span style="margin-left:6px;display:inline-flex;align-items:center">${icons}</span>` : '';
+    const row = document.createElement('div');
+    row.className = 'rank-row' + (isMe ? ' me' : '') + (i === 0 ? ' top1' : i === 1 ? ' top2' : i === 2 ? ' top3' : '');
+    row.innerHTML = `<div class="pos">${i+1}</div>
+      <div class="who">
+        <div class="nm">${iconsBlock}${escapeHtml(display)}${prize}${isMe ? ' <span style="color:var(--accent);font-size:11px;font-weight:600">· você</span>' : ''}</div>
+        <div class="sub">${p.badge_count||0} ${p.badge_count===1?'selo':'selos'} · ${p.games_played||0} ${p.games_played===1?'partida':'partidas'}</div>
+      </div>
+      <div class="pts">${p.total_score||0}</div>`;
+    list.appendChild(row);
+  });
+}
+
+async function openMyBadges() {
+  const m = document.getElementById('modal-badges');
+  m.classList.add('show');
+  const list = document.getElementById('badges-list');
+  list.innerHTML = '<p class="muted" style="text-align:center;padding:32px 0">Carregando…</p>';
+  const [{data: all}, {data: mine}] = await Promise.all([
+    sb.from('badges').select('*').eq('active', true).order('sort_order'),
+    sb.from('player_badges').select('badge_id').eq('player_id', app.player.id)
+  ]);
+  const mineSet = new Set((mine||[]).map(m => m.badge_id));
+  document.getElementById('hud-badges').textContent = mineSet.size;
+
+  list.innerHTML = `<div class="badge-grid"></div>`;
+  const grid = list.querySelector('.badge-grid');
+  (all||[]).forEach(b => {
+    const earned = mineSet.has(b.id);
+    const card = document.createElement('div');
+    card.className = 'badge-tile' + (earned ? '' : ' locked');
+    card.innerHTML = `<span class="stripe" style="background:${b.color || 'var(--accent)'}"></span>
+      <p class="name">${escapeHtml(b.name)}</p>
+      <p class="desc">${escapeHtml(b.description)}</p>`;
+    grid.appendChild(card);
+  });
+}
+
+function logoutPlayer() {
+  if (!confirm('Encerrar sua sessão? O dispositivo ficará disponível para o próximo jogador.')) return;
+  // Limpa localStorage do jogador
+  localStorage.removeItem('infrabr_device_id');
+  // Zera estado em memória
+  app.player = null;
+  app.currentState = null;
+  app.currentQuestion = null;
+  app.roundPoints = 0;
+  app.newBadges = [];
+  if (app.timerInterval) clearInterval(app.timerInterval);
+  // Gera novo device id para o próximo jogador
+  app.deviceId = getDeviceId();
+  // Limpa o formulário e volta para o início
+  document.getElementById('player-name').value = '';
+  document.getElementById('allow-display').checked = true;
+  document.getElementById('hud-score').textContent = '0';
+  document.getElementById('hud-badges').textContent = '0';
+  showScreen('screen-welcome');
+}
+
+function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ================== TELEFONE (PREMIAÇÃO) ================== */
+function bindPhoneMasks(ccId, numId) {
+  const cc  = document.getElementById(ccId);
+  const num = document.getElementById(numId);
+  if (cc) {
+    cc.addEventListener('input', () => {
+      const v = cc.value.replace(/\D/g, '').slice(0, 4);
+      cc.value = v ? '+' + v : '';
+    });
+    cc.addEventListener('blur', () => { if (!cc.value) cc.value = '+55'; });
+  }
+  if (num) {
+    num.addEventListener('input', () => {
+      const d = num.value.replace(/\D/g, '').slice(0, 11);
+      num.value = d.length > 2 ? d.slice(0, 2) + ' ' + d.slice(2) : d;
+    });
+  }
+}
+function readPhone(ccId, numId) {
+  const cc  = (document.getElementById(ccId)  || {}).value || '';
+  const num = (document.getElementById(numId) || {}).value || '';
+  const digits = num.replace(/\D/g, '');
+  if (!digits) return '';
+  const ccClean = (cc.trim() || '+55');
+  return digits.length > 2
+    ? ccClean + ' ' + digits.slice(0, 2) + ' ' + digits.slice(2)
+    : ccClean + ' ' + digits;
+}
+async function savePhoneFromResult() {
+  const fb  = document.getElementById('phone-feedback');
+  const btn = document.getElementById('btn-save-phone');
+  const phone = readPhone('phone-cc-result', 'phone-num-result');
+  if (!phone || phone.replace(/\D/g, '').length < 10) {
+    fb.style.color = 'var(--orange)'; fb.textContent = 'Informe DDD + número.'; return;
+  }
+  btn.disabled = true;
+  try {
+    const { error } = await sb.from('player_phones').upsert(
+      { player_id: app.player.id, phone, updated_at: new Date().toISOString() },
+      { onConflict: 'player_id' }
+    );
+    if (error) throw error;
+    app.player.has_phone = true;
+    fb.style.color = 'var(--accent)'; fb.textContent = 'Telefone registrado! Boa sorte.';
+    setTimeout(() => { document.getElementById('phone-prize-section').style.display = 'none'; }, 1200);
+  } catch (e) {
+    fb.style.color = 'var(--orange)'; fb.textContent = 'Não foi possível registrar: ' + (e.message || e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ================== INIT ================== */
+window.addEventListener('DOMContentLoaded', () => {
+  dd.init();
+  renderDimensionPicker();
+
+  // Seletor de dificuldade NA TELA DO MAPA (default 'easy' a cada partida)
+  document.querySelectorAll('#difficulty-bar .diff-chip').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#difficulty-bar .diff-chip').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+      app.difficulty = b.dataset.diff;
+    });
+  });
+
+  // Welcome
+  document.getElementById('btn-start').addEventListener('click', async () => {
+    const name = document.getElementById('player-name').value.trim();
+    if (!name) { alert('Digite seu nome ou apelido.'); return; }
+    const allow = document.getElementById('allow-display').checked;
+    const phone = readPhone('phone-cc-welcome', 'phone-num-welcome');
+    const ok = await loginPlayer(name, allow, phone);
+    if (!ok) return;
+    resetDifficultyToEasy();
+    showScreen('screen-map');
+    initMap();
+    markPlayedStates();
+  });
+  // Máscaras + botão de registrar telefone no fim da rodada
+  bindPhoneMasks('phone-cc-welcome', 'phone-num-welcome');
+  bindPhoneMasks('phone-cc-result',  'phone-num-result');
+  document.getElementById('btn-save-phone').addEventListener('click', savePhoneFromResult);
+  document.getElementById('btn-ranking-welcome').addEventListener('click', openRanking);
+
+  // Map
+  document.getElementById('btn-go-state').addEventListener('click', () => {
+    const v = dd.getValue();
+    if (!v) { alert('Selecione um estado.'); return; }
+    selectState(v);
+  });
+  document.getElementById('btn-ranking-map').addEventListener('click', openRanking);
+  document.getElementById('btn-badges-hud').addEventListener('click', openMyBadges);
+
+  // Quiz → próxima da rodada OU → Suggest (após a 3ª)
+  document.getElementById('btn-after-feedback').addEventListener('click', () => {
+    app.roundIndex += 1;
+    if (app.roundIndex < app.roundQueue.length) {
+      loadNextRoundQuestion();
+      return;
+    }
+    document.getElementById('suggest-state-label').textContent = STATES[app.currentState].name;
+    document.getElementById('suggestion-text').value = '';
+    document.getElementById('suggest-counter').textContent = '0';
+    document.querySelectorAll('#dimension-picker .dim-chip').forEach(b => b.classList.remove('selected'));
+    showScreen('screen-suggest');
+  });
+
+  // Suggest
+  document.getElementById('suggestion-text').addEventListener('input', e => {
+    document.getElementById('suggest-counter').textContent = e.target.value.length;
+  });
+  document.getElementById('btn-skip-suggest').addEventListener('click', () => sendSuggestion(true));
+  document.getElementById('btn-send-suggest').addEventListener('click', () => sendSuggestion(false));
+
+  // Result
+  document.getElementById('btn-play-again').addEventListener('click', () => {
+    app.roundPoints = 0; app.newBadges = [];
+    resetDifficultyToEasy();
+    showScreen('screen-map'); markPlayedStates();
+  });
+  document.getElementById('btn-see-badges').addEventListener('click', openMyBadges);
+  document.getElementById('btn-result-ranking').addEventListener('click', openRanking);
+  document.getElementById('btn-logout-map').addEventListener('click', logoutPlayer);
+  document.getElementById('btn-logout-result').addEventListener('click', logoutPlayer);
+
+  // Modal close
+  document.querySelectorAll('.modal-close').forEach(b => {
+    b.addEventListener('click', () => b.closest('.modal-bg').classList.remove('show'));
+  });
+  document.querySelectorAll('.modal-bg').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+  });
+});
+</script>
+</body>
+</html>
